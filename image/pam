@@ -1,0 +1,34 @@
+#!/bin/sh
+# 用户管理, 用法同上游 script/pam: pam {show|add USER PASSWORD|del USER}
+# 密码改存 sha512-crypt (上游用 htpasswd -d, 只认前 8 位)
+PASSWD_FILE="/home/danted/conf/sockd.passwd"
+
+# 原地改写: sockd.passwd 是单文件挂载, 不能换成新文件
+del_user(){
+    awk -F: -v u="$1" '$1 != u' "$PASSWD_FILE" > /tmp/sockd.passwd
+    cat /tmp/sockd.passwd > "$PASSWD_FILE"
+    rm -f /tmp/sockd.passwd
+}
+
+touch "$PASSWD_FILE"
+case "$1" in
+  show)
+    cut -d: -f1 "$PASSWD_FILE"
+    ;;
+  add)
+    [ -n "$2" ] && [ -n "$3" ] || { echo "Usage: pam add USER PASSWORD" >&2; exit 1; }
+    hash=$(mkpasswd -m sha512 "$3") && [ -n "$hash" ] || exit 1
+    del_user "$2"
+    echo "$2:$hash" >> "$PASSWD_FILE"
+    echo "saved: $2"
+    ;;
+  del)
+    [ -n "$2" ] || { echo "Usage: pam del USER" >&2; exit 1; }
+    del_user "$2"
+    echo "deleted: $2"
+    ;;
+  *)
+    echo "Usage: pam {show|add USER PASSWORD|del USER}" >&2
+    exit 1
+    ;;
+esac
