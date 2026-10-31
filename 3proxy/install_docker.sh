@@ -10,6 +10,7 @@
 # 可选参数用环境变量传, 例如:  PORT=1080 PROXY_USER=xxx PROXY_PASS=xxx bash install_docker.sh [cn]
 #   PORT 端口 (2020)    PROXY_USER / PROXY_PASS 账号密码    MAXCONN 最大并发连接 (10000)
 #   DNS 指定 DNS, 空格分隔 (默认用本机的)    BLOCK_LAN=1 屏蔽本机和内网 (默认不屏蔽)    BBR=0 不开 BBR
+#   LOGDUMP 长连接每传多少字节先记一条日志 (默认 1048576 即 1MB; 设成 0 只在连接结束时记一条)
 # 管理用户:  docker exec 3proxy user {show|add USER PASSWORD|del USER}
 #
 
@@ -47,6 +48,9 @@ for s in "$PROXY_USER" "$PROXY_PASS"; do
         *[!A-Za-z0-9._~-]*) echo "Error: 账号和密码只能用字母、数字和 . _ ~ -"; exit 1;;
     esac
 done
+case "$LOGDUMP" in
+    *[!0-9]*) echo "Error: LOGDUMP 只能是数字 (字节数), 0 表示关闭"; exit 1;;
+esac
 
 if ! command -v curl >/dev/null 2>&1; then
     (apt-get update && apt-get install -y curl) || yum install -y curl
@@ -98,7 +102,7 @@ docker run -d \
     --network host \
     --ulimit nofile=65535:65535 \
     --cap-drop ALL --cap-add NET_BIND_SERVICE \
-    -e PORT="$PORT" -e MAXCONN="$MAXCONN" -e DNS="$DNS" -e BLOCK_LAN="$BLOCK_LAN" \
+    -e PORT="$PORT" -e MAXCONN="$MAXCONN" -e DNS="$DNS" -e BLOCK_LAN="$BLOCK_LAN" -e LOGDUMP="$LOGDUMP" \
     -v "$CONF_DIR:/etc/3proxy" $LOCALTIME \
     --log-opt max-size=10m --log-opt max-file=3 \
     "$IMAGE" || exit 1

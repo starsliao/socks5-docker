@@ -60,4 +60,5 @@ curl -fsSLO https://cdn.jsdelivr.net/gh/starsliao/socks5-docker@main/danted/inst
 | 账号环境变量 | `PROXY_USER` / `PROXY_PASS` | `SOCKD_USER` / `SOCKD_PASS` |
 
 - 两列数字来自同一台机器上的两轮测试，方法相同。
+- 3proxy 的数据是关闭 `LOGDUMP`（长连接分段记日志，默认开启）时测的，开启后的开销见 [3proxy/](3proxy/README.md)。
 - Dante 新建连接慢，有一部分是因为它的镜像用 sha512-crypt 保存密码，每次认证都要算一遍这种故意做慢的哈希。它是多进程模型，连接一多，内存也涨得快。
