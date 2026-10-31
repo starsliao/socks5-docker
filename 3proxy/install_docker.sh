@@ -10,7 +10,7 @@
 # 可选参数用环境变量传, 例如:  PORT=1080 PROXY_USER=xxx PROXY_PASS=xxx bash install_docker.sh [cn]
 #   PORT 端口 (2020)    PROXY_USER / PROXY_PASS 账号密码    MAXCONN 最大并发连接 (10000)
 #   DNS 指定 DNS, 空格分隔 (默认用本机的)    BLOCK_LAN=1 屏蔽本机和内网 (默认不屏蔽)    BBR=0 不开 BBR
-#   LOGDUMP 长连接每传多少字节先记一条日志 (默认 1048576 即 1MB; 设成 0 只在连接结束时记一条)
+#   LOGDUMP 长连接每传多少字节先记一条日志 (默认 10485760 即 10MB; 设成 0 只在连接结束时记一条)
 # 管理用户:  docker exec 3proxy user {show|add USER PASSWORD|del USER}
 #
 
