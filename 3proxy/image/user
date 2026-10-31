@@ -1,0 +1,45 @@
+#!/bin/sh
+# 账号管理: user {show|add USER PASSWORD|del USER}
+# 账号存在 /etc/3proxy/passwd, 一行一个 USER:CL:PASSWORD (明文: SOCKS5 本身就明文传密码, 存明文换来认证零开销);
+# 改完给 3proxy (容器里的 1 号进程) 发 USR1 重新加载, 立即生效; 删掉的账号, 已建立的连接也会被断开
+PASSWD="/etc/3proxy/passwd"
+
+usage(){ echo "Usage: user {show|add USER PASSWORD|del USER}" >&2; exit 1; }
+
+# 只允许 URL 里不用转义的字符, socks5h:// 链接和 3proxy 配置解析都不会出问题
+check(){
+    case "$1" in
+        ""|*[!A-Za-z0-9._~-]*) echo "账号和密码只能用字母、数字和 . _ ~ -" >&2; exit 1;;
+    esac
+}
+
+# 先写临时文件再改名替换: 3proxy 重载时不会读到写了一半的文件 (宿主机挂载的是目录, 改名能生效);
+# 3proxy 每秒检查一次重载信号, 等重载完成再返回, 接着就能用新账号
+save(){
+    umask 077
+    cat > "$PASSWD.tmp" && mv "$PASSWD.tmp" "$PASSWD" && kill -USR1 1 && sleep 2
+}
+
+exists(){ awk -F: -v u="$1" '$1 == u {f = 1} END {exit !f}' "$PASSWD"; }
+
+[ -e "$PASSWD" ] || (umask 077; : > "$PASSWD")
+case "$1" in
+    show)
+        cut -d: -f1 "$PASSWD"
+        ;;
+    add)
+        [ $# -eq 3 ] || usage
+        check "$2"; check "$3"
+        { awk -F: -v u="$2" '$1 != u' "$PASSWD"; echo "$2:CL:$3"; } | save && echo "saved: $2"
+        ;;
+    del)
+        [ $# -eq 2 ] || usage
+        exists "$2" || { echo "没有这个账号: $2" >&2; exit 1; }
+        # 账号文件空了 3proxy 会加载配置失败、停止服务, 所以至少留一个
+        [ "$(grep -c : "$PASSWD")" -gt 1 ] || { echo "至少要保留一个账号, 先 add 新账号再删" >&2; exit 1; }
+        awk -F: -v u="$2" '$1 != u' "$PASSWD" | save && echo "deleted: $2"
+        ;;
+    *)
+        usage
+        ;;
+esac

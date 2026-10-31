@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# Dante Socks5 一键 Docker 安装  https://github.com/starsliao/danted-docker
+# Dante Socks5 一键 Docker 安装  https://github.com/starsliao/socks5-docker
 # 步骤照 https://github.com/Lozy/danted README 的 "Install by Docker",
 # 镜像换成自己打的 sockd:1.4.4 (Dante 1.4.4 + Alpine 3.24, 只有 amd64; 构建见 image/)
 #

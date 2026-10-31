@@ -1,97 +1,63 @@
-# danted-docker
+# socks5-docker
 
-Dante SOCKS5 代理的一键 Docker 安装脚本。安装步骤参考 [Lozy/danted](https://github.com/Lozy/danted) README 里的 "Install by Docker"，镜像重新打包：
+SOCKS5 代理的一键 Docker 安装脚本。有两个版本，各放在一个目录里：
 
-- Dante 1.4.4（官方最新版，修复了 CVE-2024-54662）
-- 基于 Alpine 3.24，镜像压缩后约 4.5MB，只有 amd64
-- 认证方式和上游一样：PAM + pam_pwdfile 密码文件，不建系统用户；密码用 sha512-crypt 保存
+| 目录 | 版本 | 特点 |
+| --- | --- | --- |
+| [3proxy/](3proxy/) | 3proxy 1.0.2 | 推荐。吞吐最高，CPU 和内存占用最低；可选屏蔽本机和内网 |
+| [danted/](danted/) | Dante 1.4.4 | 老牌 SOCKS5 服务；PAM 认证，密码用 sha512-crypt 保存 |
+
+两个脚本的用法相同：
+
+- 国外服务器从 Docker Hub 拉镜像；国内服务器加 `cn` 参数，从阿里云拉镜像
+- 随机生成账号（账号 16 位、密码 8 位），每次运行都会重置账号
 - 容器用 host 网络运行，TCP 和 UDP 转发都支持
+- 装完自动走代理访问 cip.cc 自检，并打印 `socks5h://` 使用地址
 
 ## 一键安装
 
-用 root 运行：
+用 root 运行。
+
+### 3proxy（推荐）
 
 ```bash
-# 国外服务器：镜像从 Docker Hub 拉
-curl -fsSLO https://raw.githubusercontent.com/starsliao/danted-docker/main/install_docker.sh && bash install_docker.sh
+# 国外服务器
+curl -fsSLO https://raw.githubusercontent.com/starsliao/socks5-docker/main/3proxy/install_docker.sh && bash install_docker.sh
 
-# 国内服务器：镜像从阿里云拉，Docker 也用阿里云源安装
-# （raw.githubusercontent.com 在国内时通时不通，这里用 jsDelivr 下载）
-curl -fsSLO https://cdn.jsdelivr.net/gh/starsliao/danted-docker@main/install_docker.sh && bash install_docker.sh cn
+# 国内服务器
+curl -fsSLO https://cdn.jsdelivr.net/gh/starsliao/socks5-docker@main/3proxy/install_docker.sh && bash install_docker.sh cn
 ```
 
-已经下载过脚本的话，直接运行 `bash install_docker.sh`（国内加 `cn`）。
+### Dante
 
-脚本会依次：安装 Docker（没装的话）→ 拉镜像 → 用 host 网络启动容器并设为开机自启 → 随机生成账号 → 走代理访问 cip.cc 自检。成功后输出：
+```bash
+# 国外服务器
+curl -fsSLO https://raw.githubusercontent.com/starsliao/socks5-docker/main/danted/install_docker.sh && bash install_docker.sh
 
-```
-安装成功
-使用地址: socks5h://<账号>:<密码>@<出口IP>:2020
-测试地址: curl -x socks5h://<账号>:<密码>@<出口IP>:2020 cip.cc
-管理用户: docker exec sockd script/pam {show|add USER PASSWORD|del USER}
-云服务器记得在安全组放行 TCP 2020
+# 国内服务器
+curl -fsSLO https://cdn.jsdelivr.net/gh/starsliao/socks5-docker@main/danted/install_docker.sh && bash install_docker.sh cn
 ```
 
-### 可选参数
+国内服务器用 jsDelivr 下载脚本，因为 raw.githubusercontent.com 在国内时通时不通。
 
-用环境变量传：
+两个版本默认都用 2020 端口。同一台机器上两个都装的话，第二个要用 `PORT=端口号` 换一个端口。3proxy 的脚本发现端口被占用时，会提示并退出。
 
-| 变量 | 默认值 | 说明 |
+可选参数和账号管理见各目录里的 README。
+
+## 两个版本对比
+
+同一台 3 核机器上实测（客户端、后端和代理在同一台机器上）：
+
+| | 3proxy | Dante |
 | --- | --- | --- |
-| `PORT` | `2020` | 监听端口 |
-| `SOCKD_USER` | 随机 16 位 | 账号 |
-| `SOCKD_PASS` | 随机 8 位 | 密码 |
+| 单连接吞吐 | 1903 MB/s | 674 MB/s |
+| 每 GB 流量耗 CPU | 0.54 s | 1.52 s |
+| 每秒新建连接（含认证，100 并发） | 2844 次 | 461 次 |
+| 空闲内存 | 0.7 MB | 9.5 MB |
+| 500 个并发连接时的进程内存 | 约 33 MB | 约 265 MB |
+| 镜像大小 | 4.4 MB | 16 MB |
+| 账号管理 | `docker exec 3proxy user ...` | `docker exec sockd script/pam ...` |
+| 账号环境变量 | `PROXY_USER` / `PROXY_PASS` | `SOCKD_USER` / `SOCKD_PASS` |
 
-```bash
-PORT=1080 SOCKD_USER=myuser SOCKD_PASS='MyPass123' bash install_docker.sh
-```
-
-随机账号由大小写字母和数字组成，三类都至少出现一次。没有用符号，这样 `socks5h://` 链接和命令行里都不用转义。
-
-**每次运行都会重置账号**：密码文件会被清空，只保留这次的账号。只想加账号或改密码，用下面的 `script/pam`。
-
-## 管理账号
-
-```bash
-docker exec sockd script/pam show                 # 查看账号
-docker exec sockd script/pam add USER PASSWORD    # 添加账号 / 修改密码
-docker exec sockd script/pam del USER             # 删除账号
-```
-
-账号保存在宿主机的 `/etc/sockd/sockd.passwd`，增删立即生效，不用重启容器。
-
-## 镜像
-
-| 用途 | 地址 |
-| --- | --- |
-| 国外 | `starsliao/sockd:1.4.4` |
-| 国内 | `registry.cn-shenzhen.aliyuncs.com/starsl/sockd:1.4.4` |
-
-不用脚本、手动运行：
-
-```bash
-mkdir -p /etc/sockd && touch /etc/sockd/sockd.passwd
-docker run -d --name sockd --restart always --network host -e PORT=2020 \
-    -v /etc/sockd/sockd.passwd:/home/danted/conf/sockd.passwd \
-    starsliao/sockd:1.4.4
-docker exec sockd script/pam add USER PASSWORD
-```
-
-## 自己构建
-
-```bash
-docker build --provenance=false -t sockd:1.4.4 image/
-```
-
-`image/` 目录里：
-
-- `Dockerfile`：多阶段构建，编译 dante 1.4.4（只编服务端，打上 Alpine 官方包用的 musl 兼容补丁）和 pam_pwdfile
-- `sockd.conf`：沿用上游的配置
-- `entrypoint.sh`：启动时按 `PORT` 和默认路由所在的网卡改写配置
-- `pam`：账号管理脚本，用法和上游一样
-
-## 注意事项
-
-- 云服务器要在安全组里放行 TCP 端口。UDP 转发的中继端口是随机高端口，要用 UDP 转发还得放行 UDP。
-- SOCKS5 是明文协议。从国内直连海外的 SOCKS5 去访问被墙的网站，会被识别出来并封掉端口。
-- 镜像里的配置文件在 `/home/danted/conf/sockd.conf`，不是 Debian 包的 `/etc/danted.conf`。
+- 两列数字来自同一台机器上的两轮测试，方法相同。
+- Dante 新建连接慢，有一部分是因为它的镜像用 sha512-crypt 保存密码，每次认证都要算一遍这种故意做慢的哈希。它是多进程模型，连接一多，内存也涨得快。
